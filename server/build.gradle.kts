@@ -19,9 +19,9 @@ dependencies {
     implementation(libs.ktor.serverNetty)
     testImplementation(libs.ktor.serverTestHost)
     implementation(libs.ktor.serverWebsockets)
+    implementation(libs.kotlinx.serialization.json)
     implementation(libs.kotlinx.rpc.krpcServer.ktor)
     implementation(libs.kotlinx.rpc.krpcServer)
-    implementation(libs.kotlinx.serialization.json)
     implementation(libs.kotlinx.rpc.krpc.serialization.json)
     implementation(libs.webcam.capture)
 }

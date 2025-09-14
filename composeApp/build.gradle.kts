@@ -1,11 +1,13 @@
 import org.jetbrains.kotlin.gradle.ExperimentalWasmDsl
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
+import org.jetbrains.kotlin.gradle.targets.js.webpack.KotlinWebpackConfig
 
 plugins {
     alias(libs.plugins.kotlinMultiplatform)
     alias(libs.plugins.androidApplication)
     alias(libs.plugins.composeMultiplatform)
     alias(libs.plugins.composeCompiler)
+    alias(libs.plugins.kotlinxRpc)
 }
 
 kotlin {
@@ -27,7 +29,19 @@ kotlin {
     
     @OptIn(ExperimentalWasmDsl::class)
     wasmJs {
-        browser()
+        outputModuleName = "composeApp"
+        browser {
+            val projectDirPath = project.projectDir.path
+            commonWebpackConfig {
+                outputFileName = "composeApp.js"
+                devServer = (devServer ?: KotlinWebpackConfig.DevServer()).apply {
+                    static = (static ?: mutableListOf()).apply {
+                        // Serve sources to debug inside browser
+                        add(projectDirPath)
+                    }
+                }
+            }
+        }
         binaries.executable()
     }
     
@@ -45,10 +59,23 @@ kotlin {
             implementation(compose.components.uiToolingPreview)
             implementation(libs.androidx.lifecycle.viewmodelCompose)
             implementation(libs.androidx.lifecycle.runtimeCompose)
+
+            implementation(libs.ktor.clientCore)
+            implementation(libs.ktor.clientWebsockets)
+            implementation(libs.webrtc.kmp)
+            implementation(libs.kotlinx.serialization.json)
+
+            implementation(libs.kotlinx.rpc.krpcClient)
+            implementation(libs.kotlinx.rpc.krpc.ktorClient)
+            implementation(libs.kotlinx.rpc.krpc.serialization.json)
+
             implementation(projects.shared)
         }
         commonTest.dependencies {
             implementation(libs.kotlin.test)
+        }
+        wasmJsMain.dependencies {
+            implementation(libs.ktor.clientEngine.js)
         }
     }
 }
@@ -83,4 +110,3 @@ android {
 dependencies {
     debugImplementation(compose.uiTooling)
 }
-
