@@ -1,27 +1,36 @@
 package tokyo.isseikuzumaki.atvremote.service
 
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.flowOf
-import tokyo.isseikuzumaki.atvremote.shared.*
+import kotlinx.coroutines.flow.flow
+import tokyo.isseikuzumaki.atvremote.shared.AdbCommand
+import tokyo.isseikuzumaki.atvremote.shared.AdbCommandResult
+import tokyo.isseikuzumaki.atvremote.shared.AtvControlService
+import tokyo.isseikuzumaki.atvremote.shared.IceCandidateData
+import tokyo.isseikuzumaki.atvremote.shared.IceCandidateResponse
+import tokyo.isseikuzumaki.atvremote.shared.Logger
+import tokyo.isseikuzumaki.atvremote.shared.SdpAnswer
+import tokyo.isseikuzumaki.atvremote.shared.SdpOffer
 import java.util.UUID
 
 class AtvControlServiceImpl : AtvControlService {
 
     companion object {
+        private const val TAG = "AtvControlServiceImpl"
         private val adbManager = AdbManager()
         private val webRTCManager = WebRTCSignalingManager()
     }
 
 
-    override suspend fun sendSdpOffer(offer: SdpOffer): Flow<SdpAnswer> {
+    override fun sendSdpOffer(offer: SdpOffer): Flow<SdpAnswer> = flow {
+        Logger.d(TAG, "Received SDP Offer from client: $offer")
         val sessionId = UUID.randomUUID().toString()
-        return flowOf(webRTCManager.handleOffer(sessionId, offer))
+        emit(webRTCManager.handleOffer(sessionId, offer))
     }
 
-    override suspend fun sendIceCandidate(candidate: IceCandidateData): Flow<IceCandidateResponse> {
-        println("Received ICE Candidate from client ${candidate.sessionId}")
+    override fun sendIceCandidate(candidate: IceCandidateData): Flow<IceCandidateResponse> = flow {
+        Logger.d(TAG, "Received ICE Candidate from client ${candidate.sessionId}")
 
-        return try {
+        try {
             // Store ICE Candidate
             webRTCManager.addIceCandidate(candidate)
 
@@ -33,36 +42,36 @@ class AtvControlServiceImpl : AtvControlService {
                 sdpMLineIndex = candidate.sdpMLineIndex
             )
 
-            println("ICE Candidate processed for client $candidate.sessionId")
+            Logger.d(TAG, "ICE Candidate processed for client $candidate.sessionId")
 
-            flowOf(IceCandidateResponse(listOf(serverCandidate)))
+            emit(IceCandidateResponse(listOf(serverCandidate)))
         } catch (e: Exception) {
-            println("Error handling ICE Candidate: ${e.message}")
+            Logger.d(TAG, "Error handling ICE Candidate: ${e.message}")
 
-            flowOf(IceCandidateResponse(emptyList()))
+            emit(IceCandidateResponse(emptyList()))
         }
     }
 
-    override suspend fun sendAdbCommand(command: AdbCommand): Flow<AdbCommandResult> {
-        println("Received ADB Command from client : ${command.command}")
+    override fun sendAdbCommand(command: AdbCommand): Flow<AdbCommandResult> = flow {
+        Logger.d(TAG, "Received ADB Command from client : ${command.command}")
 
-        return try {
+        try {
             // Execute ADB command
             val result = adbManager.executeCommand(command)
 
-            println("ADB Command executed for client : success=${result.isSuccess}")
+            Logger.d(TAG, "ADB Command executed for client : success=${result.isSuccess}")
 
             // Notify client of execution result
-            flowOf(result)
+            emit(result)
 
         } catch (e: Exception) {
             val errorResult = AdbCommandResult(
                 output = "Error: ${e.message}",
                 isSuccess = false
             )
-            println("Error executing ADB Command: ${e.message}")
+            Logger.d(TAG, "Error executing ADB Command: ${e.message}")
 
-            flowOf(errorResult)
+            emit(errorResult)
         }
     }
 }

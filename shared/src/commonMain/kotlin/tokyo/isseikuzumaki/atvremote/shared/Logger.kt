@@ -1,4 +1,4 @@
-package tokyo.isseikuzumaki.atvremote
+package tokyo.isseikuzumaki.atvremote.shared
 
 expect object Logger {
     fun d(tag: String, msg: String)

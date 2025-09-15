@@ -4,6 +4,7 @@ import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 plugins {
     alias(libs.plugins.kotlinMultiplatform)
     alias(libs.plugins.androidLibrary)
+    alias(libs.plugins.kotlinxRpc)
     alias(libs.plugins.kotlinSerialization)
 }
 
@@ -18,7 +19,7 @@ kotlin {
     iosSimulatorArm64()
     
     jvm()
-    
+
     @OptIn(ExperimentalWasmDsl::class)
     wasmJs {
         browser()
@@ -26,9 +27,9 @@ kotlin {
     
     sourceSets {
         commonMain.dependencies {
-            implementation(libs.kotlinx.rpc.core)
-            implementation(libs.kotlinx.serialization.core)
-            implementation(libs.kotlinx.serialization.json)
+            api(libs.kotlinx.rpc.core)
+            api(libs.kotlinx.serialization.core)
+            api(libs.kotlinx.serialization.json)
         }
         commonTest.dependencies {
             implementation(libs.kotlin.test)

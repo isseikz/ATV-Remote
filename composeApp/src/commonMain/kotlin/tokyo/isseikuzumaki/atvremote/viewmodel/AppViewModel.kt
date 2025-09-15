@@ -24,15 +24,15 @@ import kotlinx.rpc.krpc.ktor.client.rpc
 import kotlinx.rpc.krpc.ktor.client.rpcConfig
 import kotlinx.rpc.krpc.serialization.json.json
 import kotlinx.rpc.withService
-import tokyo.isseikuzumaki.atvremote.AtvControlService
-import tokyo.isseikuzumaki.atvremote.SERVER_DOMAIN
-import tokyo.isseikuzumaki.atvremote.Logger
-import tokyo.isseikuzumaki.atvremote.SERVER_PORT
+import tokyo.isseikuzumaki.atvremote.shared.AtvControlService
+import tokyo.isseikuzumaki.atvremote.shared.Logger
+import tokyo.isseikuzumaki.atvremote.shared.SERVER_DOMAIN
+import tokyo.isseikuzumaki.atvremote.shared.SERVER_PORT
 import tokyo.isseikuzumaki.atvremote.shared.SdpOffer
 
 
 class AppViewModel : ViewModel() {
-    val service: AtvControlService by lazy {
+    val rpcClient by lazy {
         HttpClient {
             installKrpc {
                 waitForServices = true
@@ -49,7 +49,10 @@ class AppViewModel : ViewModel() {
                     json()
                 }
             }
-        }.withService<AtvControlService>()
+        }
+    }
+    val service by lazy {
+        rpcClient.withService<AtvControlService>()
     }
 
     val activeVideo = flowOf<VideoTrack?>(null)
@@ -107,6 +110,7 @@ class AppViewModel : ViewModel() {
             ).onEach { answer ->
                 Logger.d(TAG, "onSdpAnswer: $answer")
 
+                //FIXME: Js Exception
                 remote.setRemoteDescription(
                     SessionDescription(
                         type = SessionDescriptionType.Answer,
