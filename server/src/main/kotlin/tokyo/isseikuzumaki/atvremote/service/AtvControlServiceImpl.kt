@@ -4,7 +4,9 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
 import tokyo.isseikuzumaki.atvremote.shared.AdbCommand
 import tokyo.isseikuzumaki.atvremote.shared.AdbCommandResult
+import tokyo.isseikuzumaki.atvremote.shared.AdbDevice
 import tokyo.isseikuzumaki.atvremote.shared.AtvControlService
+import tokyo.isseikuzumaki.atvremote.shared.DeviceId
 import tokyo.isseikuzumaki.atvremote.shared.IceCandidateData
 import tokyo.isseikuzumaki.atvremote.shared.IceCandidateResponse
 import tokyo.isseikuzumaki.atvremote.shared.Logger
@@ -20,6 +22,12 @@ class AtvControlServiceImpl : AtvControlService {
         private val webRTCManager = WebRTCSignalingManager()
     }
 
+    override fun adbDevices(): Flow<List<AdbDevice>> = flow {
+        Logger.d(TAG, "Fetching ADB devices")
+        val devices = adbManager.devices()
+        Logger.d(TAG, "Found ${devices.size} ADB devices")
+        emit(devices)
+    }
 
     override fun sendSdpOffer(offer: SdpOffer): Flow<SdpAnswer> = flow {
         Logger.d(TAG, "Received SDP Offer from client: $offer")
@@ -52,7 +60,7 @@ class AtvControlServiceImpl : AtvControlService {
         }
     }
 
-    override fun sendAdbCommand(command: AdbCommand): Flow<AdbCommandResult> = flow {
+    override fun sendAdbCommand(deviceId: DeviceId, command: AdbCommand): Flow<AdbCommandResult> = flow {
         Logger.d(TAG, "Received ADB Command from client : ${command.command}")
 
         try {

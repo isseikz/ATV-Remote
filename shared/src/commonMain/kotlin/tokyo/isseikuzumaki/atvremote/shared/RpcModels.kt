@@ -28,6 +28,17 @@ data class IceCandidateResponse(
 )
 
 @Serializable
+@JvmInline
+value class DeviceId(val value: String)
+
+@Serializable
+data class AdbDevice(
+    val id: DeviceId,
+    val name: String,
+    val connected: Boolean
+)
+
+@Serializable
 data class AdbCommand(
     val command: String
 )

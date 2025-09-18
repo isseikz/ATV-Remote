@@ -57,6 +57,18 @@ class AppViewModel : ViewModel() {
 
     val activeVideo = flowOf<VideoTrack?>(null)
 
+    fun observeDevices() = flow {
+
+        while (true) {
+            service.adbDevices().onEach { devices ->
+                Logger.d(TAG, "adbDevices: $devices")
+                emit(devices)
+            }.first()
+
+            delay(5000)
+        }
+    }
+
     fun openVideo() {
         Logger.d(TAG, "openVideo")
         val remote = PeerConnection().apply {

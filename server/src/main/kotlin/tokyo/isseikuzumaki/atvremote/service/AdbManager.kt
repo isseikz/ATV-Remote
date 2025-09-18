@@ -4,12 +4,38 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import tokyo.isseikuzumaki.atvremote.shared.AdbCommand
 import tokyo.isseikuzumaki.atvremote.shared.AdbCommandResult
+import tokyo.isseikuzumaki.atvremote.shared.AdbDevice
+import tokyo.isseikuzumaki.atvremote.shared.DeviceId
 import java.io.BufferedReader
 import java.io.InputStreamReader
 import java.util.concurrent.TimeUnit
 
 class AdbManager {
     private val adbPath = "adb" // Use adb from system PATH
+
+    suspend fun devices(): List<AdbDevice> = withContext(Dispatchers.IO) {
+        try {
+            val process = ProcessBuilder(adbPath, "devices").start()
+            val reader = BufferedReader(InputStreamReader(process.inputStream))
+            val output = reader.readText()
+
+            val lines = output.split("\n").filter { it.isNotBlank() }
+            return@withContext lines.drop(1).mapNotNull { line ->
+                val parts = line.split("\t")
+                if (parts.size == 2) {
+                    AdbDevice(
+                        id = DeviceId(parts[0]),
+                        name = parts[0],
+                        connected = parts[1] == "device"
+                    )
+                } else {
+                    null
+                }
+            }
+        } catch (e: Exception) {
+            emptyList()
+        }
+    }
 
     suspend fun executeCommand(command: AdbCommand): AdbCommandResult = withContext(Dispatchers.IO) {
         try {

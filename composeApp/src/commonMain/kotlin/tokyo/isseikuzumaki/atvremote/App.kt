@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.safeContentPadding
+import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -25,6 +26,7 @@ fun App(
     viewModel: AppViewModel
 ) {
     val activeVideo by viewModel.activeVideo.collectAsState(initial = null)
+    val devices by viewModel.observeDevices().collectAsState(initial = emptyList())
     MaterialTheme {
         Column(
             modifier = Modifier
@@ -33,6 +35,11 @@ fun App(
                 .fillMaxSize(),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
+            DropdownMenu(expanded = true, onDismissRequest = {}) {
+                devices.forEach { device ->
+                    Text(device.name)
+                }
+            }
             if (activeVideo == null) {
                 Image(
                     painter = painterResource(Res.drawable.compose_multiplatform),

@@ -10,6 +10,11 @@ import kotlinx.rpc.annotations.Rpc
 @Rpc
 interface AtvControlService {
     /**
+     * adb デバイスのリストを取得します。
+     */
+    fun adbDevices(): Flow<List<AdbDevice>>
+
+    /**
      * WebRTC接続を開始するため、クライアントのSDP Offerをサーバーに送信します。
      * @param offer SDP Offer情報を含むデータクラス。
      */
@@ -25,5 +30,5 @@ interface AtvControlService {
      * 指定されたADBコマンドの実行をサーバーに要求します。
      * @param command 実行したいADBコマンド。
      */
-    fun sendAdbCommand(command: AdbCommand): Flow<AdbCommandResult>
+    fun sendAdbCommand(deviceId: DeviceId, command: AdbCommand): Flow<AdbCommandResult>
 }
