@@ -1,14 +1,17 @@
 package tokyo.isseikuzumaki.atvremote.shared
 
+import android.util.Log
+
 actual object Logger {
     actual fun d(tag: String, msg: String) {
-        println("DEBUG: [$tag] $msg")
+        Log.d(tag, msg)
     }
+
     actual fun e(tag: String, msg: String, error: Throwable?) {
-        println("ERROR: [$tag] $msg")
-        error?.printStackTrace()
+        Log.e(tag, msg, error)
     }
+
     actual fun todo(tag: String, msg: String) {
-        println("TODO: [$tag] $msg")
+        Log.w(tag, "TODO: $msg")
     }
 }

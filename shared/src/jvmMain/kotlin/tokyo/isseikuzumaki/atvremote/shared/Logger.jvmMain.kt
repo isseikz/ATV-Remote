@@ -9,4 +9,8 @@ actual object Logger {
         println("ERROR: [$tag] $msg")
         error?.printStackTrace()
     }
+
+    actual fun todo(tag: String, msg: String) {
+        println("TODO: [$tag] $msg")
+    }
 }

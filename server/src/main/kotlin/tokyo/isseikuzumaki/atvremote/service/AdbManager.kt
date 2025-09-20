@@ -37,25 +37,15 @@ class AdbManager {
         }
     }
 
-    suspend fun executeCommand(command: AdbCommand): AdbCommandResult = withContext(Dispatchers.IO) {
+    suspend fun executeCommand(deviceId: DeviceId?, command: AdbCommand): AdbCommandResult = withContext(Dispatchers.IO) {
         try {
-            val processBuilder = ProcessBuilder(adbPath, "shell", command.command)
-            processBuilder.redirectErrorStream(true)
-
-            val process = processBuilder.start()
-            val reader = BufferedReader(InputStreamReader(process.inputStream))
-
-            val output = StringBuilder()
-            var line: String?
-            while (reader.readLine().also { line = it } != null) {
-                output.appendLine(line)
-            }
-
-            val exitCode = process.waitFor(10, TimeUnit.SECONDS)
-            val isSuccess = exitCode && process.exitValue() == 0
+            val adbCommand = buildAdbCommand(deviceId, command)
+            val process = createAndStartProcess(adbCommand)
+            val output = readProcessOutput(process)
+            val isSuccess = waitForProcessCompletion(process)
 
             AdbCommandResult(
-                output = output.toString().trim(),
+                output = output.trim(),
                 isSuccess = isSuccess
             )
         } catch (e: Exception) {
@@ -64,6 +54,39 @@ class AdbManager {
                 isSuccess = false
             )
         }
+    }
+
+    private fun buildAdbCommand(deviceId: DeviceId?, command: AdbCommand): List<String> {
+        return buildList {
+            add(adbPath)
+            if (deviceId != null) {
+                add("-s")
+                add(deviceId.value)
+            }
+            add("shell")
+            add(command.command)
+        }
+    }
+
+    private fun createAndStartProcess(adbCommand: List<String>): Process {
+        val processBuilder = ProcessBuilder(adbCommand)
+        processBuilder.redirectErrorStream(true)
+        return processBuilder.start()
+    }
+
+    private fun readProcessOutput(process: Process): String {
+        return BufferedReader(InputStreamReader(process.inputStream)).use { reader ->
+            val output = StringBuilder()
+            reader.lineSequence().forEach { line ->
+                output.appendLine(line)
+            }
+            output.toString()
+        }
+    }
+
+    private fun waitForProcessCompletion(process: Process): Boolean {
+        val completed = process.waitFor(10, TimeUnit.SECONDS)
+        return completed && process.exitValue() == 0
     }
 
     suspend fun checkAdbConnection(): Boolean = withContext(Dispatchers.IO) {

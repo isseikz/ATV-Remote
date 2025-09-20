@@ -18,13 +18,13 @@ interface AtvControlService {
      * WebRTC接続を開始するため、クライアントのSDP Offerをサーバーに送信します。
      * @param offer SDP Offer情報を含むデータクラス。
      */
-    fun sendSdpOffer(offer: SdpOffer): Flow<SdpAnswer>
+    fun sendSdpOffer(deviceId: DeviceId, offer: SdpOffer): Flow<SdpAnswer>
 
     /**
      * クライアント側で発見されたICE Candidateをサーバーに送信します。
      * @param candidate ICE Candidate情報を含むデータクラス。
      */
-    fun sendIceCandidate(candidate: IceCandidateData): Flow<IceCandidateResponse>
+    fun sendIceCandidate(deviceId: DeviceId, candidate: IceCandidateData): Flow<IceCandidateData>
 
     /**
      * 指定されたADBコマンドの実行をサーバーに要求します。

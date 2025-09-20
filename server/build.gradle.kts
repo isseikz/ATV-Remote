@@ -24,6 +24,12 @@ dependencies {
     implementation(libs.kotlinx.rpc.krpcServer)
     implementation(libs.kotlinx.rpc.krpc.serialization.json)
     implementation(libs.webcam.capture)
+    implementation(libs.webrtc.java)
+    runtimeOnly(libs.webrtc.java) {
+        artifact {
+            classifier = "macos-aarch64"
+        }
+    }
 }
 
 val buildApp = tasks.register("buildApp") {

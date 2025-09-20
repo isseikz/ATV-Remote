@@ -1,22 +1,23 @@
 package tokyo.isseikuzumaki.atvremote.shared
 
 import kotlinx.serialization.Serializable
+import kotlin.jvm.JvmInline
+
 
 @Serializable
 data class SdpOffer(
-    val type: String,
+    val deviceId: DeviceId,
     val sdp: String
 )
 
 @Serializable
 data class SdpAnswer(
-    val sessionId: String,
+    val deviceId: DeviceId,
     val sdp: String
 )
 
 @Serializable
 data class IceCandidateData(
-    val sessionId: String,
     val candidate: String,
     val sdpMid: String,
     val sdpMLineIndex: Int
