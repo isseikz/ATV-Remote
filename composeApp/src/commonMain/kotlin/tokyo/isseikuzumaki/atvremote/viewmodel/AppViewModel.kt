@@ -34,6 +34,7 @@ import tokyo.isseikuzumaki.atvremote.shared.AtvControlService
 import tokyo.isseikuzumaki.atvremote.shared.DeviceId
 import tokyo.isseikuzumaki.atvremote.shared.IceCandidateData
 import tokyo.isseikuzumaki.atvremote.shared.Logger
+import tokyo.isseikuzumaki.atvremote.shared.ScreenshotResult
 import tokyo.isseikuzumaki.atvremote.shared.SERVER_DOMAIN
 import tokyo.isseikuzumaki.atvremote.shared.SERVER_PORT
 import tokyo.isseikuzumaki.atvremote.shared.SdpOffer
@@ -231,6 +232,30 @@ class AppViewModel : ViewModel() {
             Logger.d(TAG, "ADB command result: $result")
             emit(result)
         }.first()
+    }
+
+    fun takeScreenshot() = flow {
+        val device = _activeDevice.value ?: run {
+            Logger.d(TAG, "No active device, cannot take screenshot")
+            emit(Result.failure<ScreenshotResult>(IllegalStateException("No active device")))
+            return@flow
+        }
+
+        Logger.d(TAG, "Taking screenshot for device: $device")
+
+        try {
+            service.takeScreenshot(device).onEach { result ->
+                Logger.d(TAG, "Screenshot result: success=${result.isSuccess}, size=${result.imageData.size} bytes")
+                if (result.isSuccess) {
+                    emit(Result.success(result))
+                } else {
+                    emit(Result.failure(Exception("Failed to take screenshot")))
+                }
+            }.first()
+        } catch (e: Exception) {
+            Logger.e(TAG, "Error taking screenshot: ${e.message}")
+            emit(Result.failure(e))
+        }
     }
 
     companion object {

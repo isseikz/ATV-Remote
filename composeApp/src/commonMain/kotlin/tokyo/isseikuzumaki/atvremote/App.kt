@@ -108,6 +108,8 @@ fun App(
                         .launchIn(scope)
                 }
             )
+
+            ScreenshotButton(viewModel)
         }
     }
 }

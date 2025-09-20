@@ -31,4 +31,11 @@ interface AtvControlService {
      * @param command 実行したいADBコマンド。
      */
     fun sendAdbCommand(deviceId: DeviceId, command: AdbCommand): Flow<AdbCommandResult>
+
+    /**
+     * 指定されたデバイスのスクリーンショットを取得します。
+     * @param deviceId スクリーンショットを取得するデバイスのID
+     * @return スクリーンショットのバイナリデータ
+     */
+    fun takeScreenshot(deviceId: DeviceId): Flow<ScreenshotResult>
 }

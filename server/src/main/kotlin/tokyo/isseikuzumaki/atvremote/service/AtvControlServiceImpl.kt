@@ -11,6 +11,7 @@ import tokyo.isseikuzumaki.atvremote.shared.DeviceId
 import tokyo.isseikuzumaki.atvremote.shared.IceCandidateData
 import tokyo.isseikuzumaki.atvremote.shared.Logger
 import tokyo.isseikuzumaki.atvremote.shared.SdpAnswer
+import tokyo.isseikuzumaki.atvremote.shared.ScreenshotResult
 import tokyo.isseikuzumaki.atvremote.shared.SdpOffer
 
 class AtvControlServiceImpl : AtvControlService {
@@ -67,6 +68,24 @@ class AtvControlServiceImpl : AtvControlService {
             )
             Logger.d(TAG, "Error executing ADB Command: ${e.message}")
 
+            emit(errorResult)
+        }
+    }
+
+    override fun takeScreenshot(deviceId: DeviceId): Flow<ScreenshotResult> = flow {
+        Logger.d(TAG, "Taking screenshot for device: $deviceId")
+        
+        try {
+            val result = adbManager.takeScreenshot(deviceId)
+            Logger.d(TAG, "Screenshot taken for device $deviceId: success=${result.isSuccess}, size=${result.imageData.size} bytes")
+            emit(result)
+        } catch (e: Exception) {
+            val errorResult = ScreenshotResult(
+                imageData = ByteArray(0),
+                isSuccess = false,
+                fileName = "error_screenshot.png"
+            )
+            Logger.e(TAG, "Error taking screenshot for device $deviceId: ${e.message}")
             emit(errorResult)
         }
     }

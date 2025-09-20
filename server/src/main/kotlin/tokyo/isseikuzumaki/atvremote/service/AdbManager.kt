@@ -6,6 +6,7 @@ import tokyo.isseikuzumaki.atvremote.shared.AdbCommand
 import tokyo.isseikuzumaki.atvremote.shared.AdbCommandResult
 import tokyo.isseikuzumaki.atvremote.shared.AdbDevice
 import tokyo.isseikuzumaki.atvremote.shared.DeviceId
+import tokyo.isseikuzumaki.atvremote.shared.ScreenshotResult
 import java.io.BufferedReader
 import java.io.InputStreamReader
 import java.util.concurrent.TimeUnit
@@ -102,6 +103,41 @@ class AdbManager {
             }
         } catch (e: Exception) {
             false
+        }
+    }
+
+    suspend fun takeScreenshot(deviceId: DeviceId?): ScreenshotResult = withContext(Dispatchers.IO) {
+        try {
+            val timestamp = System.currentTimeMillis()
+            val fileName = "screenshot_${deviceId?.value ?: "unknown"}_$timestamp.png"
+            
+            // Build adb command to take screenshot
+            val adbCommand = buildList {
+                add(adbPath)
+                if (deviceId != null) {
+                    add("-s")
+                    add(deviceId.value)
+                }
+                add("exec-out")
+                add("screencap")
+                add("-p")
+            }
+            
+            val process = createAndStartProcess(adbCommand)
+            val imageData = process.inputStream.readBytes()
+            val isSuccess = waitForProcessCompletion(process)
+            
+            ScreenshotResult(
+                imageData = imageData,
+                isSuccess = isSuccess && imageData.isNotEmpty(),
+                fileName = fileName
+            )
+        } catch (e: Exception) {
+            ScreenshotResult(
+                imageData = ByteArray(0),
+                isSuccess = false,
+                fileName = "error_screenshot.png"
+            )
         }
     }
 }
