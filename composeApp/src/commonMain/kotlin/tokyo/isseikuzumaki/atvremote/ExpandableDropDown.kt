@@ -16,6 +16,7 @@ import androidx.compose.ui.Modifier
 import org.jetbrains.compose.ui.tooling.preview.Preview
 
 data class DropdownData(
+    val label: String = "Select",
     val items: List<Item>
 ) {
     class Item(
@@ -32,12 +33,11 @@ fun ExpandableDropdownMenu(
     Box(
         modifier = Modifier
     ) {
-        if (!expanded) {
-            Button(
-                onClick = { expanded = true }
-            ) {
-                Text("Open Menu")
-            }
+        Button(
+            enabled = !expanded,
+            onClick = { expanded = true }
+        ) {
+            Text(data.label)
         }
 
         DropdownMenu(

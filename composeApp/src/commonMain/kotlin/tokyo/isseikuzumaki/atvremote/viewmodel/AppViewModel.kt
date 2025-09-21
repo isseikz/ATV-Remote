@@ -2,9 +2,13 @@ package tokyo.isseikuzumaki.atvremote.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.shepeliev.webrtckmp.IceCandidate
 import com.shepeliev.webrtckmp.IceConnectionState
+import com.shepeliev.webrtckmp.IceServer
+import com.shepeliev.webrtckmp.IceTransportPolicy
 import com.shepeliev.webrtckmp.OfferAnswerOptions
 import com.shepeliev.webrtckmp.PeerConnection
+import com.shepeliev.webrtckmp.RtcConfiguration
 import com.shepeliev.webrtckmp.SessionDescription
 import com.shepeliev.webrtckmp.SessionDescriptionType
 import com.shepeliev.webrtckmp.SignalingState
@@ -18,6 +22,7 @@ import io.ktor.http.path
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.launchIn
@@ -30,14 +35,20 @@ import kotlinx.rpc.krpc.serialization.json.json
 import kotlinx.rpc.withService
 import tokyo.isseikuzumaki.atvremote.asDomain
 import tokyo.isseikuzumaki.atvremote.shared.AdbCommand
-import tokyo.isseikuzumaki.atvremote.shared.AtvControlService
 import tokyo.isseikuzumaki.atvremote.shared.DeviceId
+import tokyo.isseikuzumaki.atvremote.shared.IAtvControlService
+import tokyo.isseikuzumaki.atvremote.shared.ISessionService
+import tokyo.isseikuzumaki.atvremote.shared.ISignalingService
 import tokyo.isseikuzumaki.atvremote.shared.IceCandidateData
 import tokyo.isseikuzumaki.atvremote.shared.Logger
-import tokyo.isseikuzumaki.atvremote.shared.ScreenshotResult
 import tokyo.isseikuzumaki.atvremote.shared.SERVER_DOMAIN
 import tokyo.isseikuzumaki.atvremote.shared.SERVER_PORT
-import tokyo.isseikuzumaki.atvremote.shared.SdpOffer
+import tokyo.isseikuzumaki.atvremote.shared.Sdp
+import tokyo.isseikuzumaki.atvremote.shared.SessionID
+import tokyo.isseikuzumaki.atvremote.shared.SignalingAnswer
+import tokyo.isseikuzumaki.atvremote.shared.SignalingCandidate
+import tokyo.isseikuzumaki.atvremote.shared.SignalingOffer
+import kotlin.reflect.typeOf
 
 
 class AppViewModel : ViewModel() {
@@ -60,58 +71,79 @@ class AppViewModel : ViewModel() {
             }
         }
     }
-    val service by lazy {
-        rpcClient.withService<AtvControlService>()
-    }
+    val adb by lazy { rpcClient.withService<IAtvControlService>() }
+    val signaling by lazy { rpcClient.withService<ISignalingService>() }
+    val session by lazy { rpcClient.withService<ISessionService>() }
+
+    val adbDevices = adb.adbDevices()
+    val waitingList = session.waitingSessions()
 
     private val _activeVideo = MutableStateFlow<VideoTrack?>(null)
     val activeVideo = _activeVideo.asStateFlow()
 
-    private val _activeDevice = MutableStateFlow<DeviceId?>(null)
-    val activeDevice = _activeDevice.asStateFlow()
+    private val _videoSession = MutableStateFlow<SessionID?>(null)
+    val videoSession = _videoSession.asStateFlow()
 
-    fun observeDevices() = flow {
+    private val _adbDevice = MutableStateFlow<DeviceId?>(null)
+    val adbDevice = _adbDevice.asStateFlow()
 
-        while (true) {
-            service.adbDevices().onEach { devices ->
-                Logger.d(TAG, "adbDevices: $devices")
-                emit(devices)
-            }.first()
-
-            delay(5000)
-        }
+    fun select(adbDevice: DeviceId) {
+        _adbDevice.value = adbDevice
     }
 
-    fun selectDevice(deviceId: DeviceId) {
-        Logger.d(TAG, "selectDevice: $deviceId")
+    fun select(sessionId: SessionID) {
+        Logger.d(TAG, "selectDevice: $sessionId")
 
-        if (_activeDevice.value == deviceId) {
-            Logger.d(TAG, "Device $deviceId is already active, ignoring select")
+        if (_videoSession.value == sessionId) {
+            Logger.d(TAG, "Device $sessionId is already active, ignoring select")
             return
         }
 
-        if (_activeDevice.value != null) {
+        if (_videoSession.value != null) {
             Logger.todo(TAG, "Another device is active, closing existing connection")
             // TODO: Close existing connection
         }
 
-        _activeDevice.value = deviceId
+        _videoSession.value = sessionId
+        openVideo()
     }
 
     fun openVideo() {
         Logger.d(TAG, "openVideo")
-        val device = _activeDevice.value ?: run {
+        val device = _videoSession.value ?: run {
             Logger.d(TAG, "No active device, cannot open video")
             return
         }
         val candidates = mutableListOf<IceCandidateData>()
-        val conn = PeerConnection().apply {
+
+        // Configure STUN servers for NAT traversal
+        val iceServers = listOf(
+            "stun:stun.l.google.com:19302",
+            "stun:stun1.l.google.com:19302",
+            "stun:stun2.l.google.com:19302"
+        ).map {
+            IceServer(urls = listOf(it))
+        }
+
+        val configuration = RtcConfiguration(
+            iceServers = iceServers,
+            iceTransportPolicy = IceTransportPolicy.All
+        )
+
+        val conn = PeerConnection(configuration).apply {
             onIceCandidate.onEach { candidate ->
                 Logger.d(
-                    TAG, "onIceCan" +
-                            "didate: $candidate"
+                    TAG, "onIceCandidate: $candidate"
                 )
                 candidates.add(candidate.asDomain())
+                signaling.putIceCandidates(
+                    SignalingCandidate(
+                        sessionID = device,
+                        candidates = listOf(
+                            candidate.asDomain()
+                        )
+                    )
+                ).collect()
             }.launchIn(viewModelScope)
             onSignalingStateChange.onEach { signalingState ->
                 Logger.d(TAG, "onSignalingStateChange: $signalingState")
@@ -196,28 +228,36 @@ class AppViewModel : ViewModel() {
             )
             conn.setLocalDescription(offer)
 
-            val answer = service.sendSdpOffer(
-                deviceId = device,
-                SdpOffer(
-                    deviceId = device,
-                    sdp = offer.sdp,
+            val answer = signaling.offer(
+                SignalingOffer(
+                    sessionID = device,
+                    sdp = Sdp(offer.sdp)
                 )
-            ).first()
+            ).collect { answer ->
+                Logger.d(TAG, "offer collected: $answer")
 
-            conn.setRemoteDescription(
-                SessionDescription(
-                    type = SessionDescriptionType.Answer,
-                    sdp = answer.sdp
-                )
-            )
-//            Logger.d(TAG, "Exchanging ICE candidates with ${candidates.size} candidates")
-//
-            service.sendIceCandidate(device, candidates.first()).first()
+                when (answer) {
+                    is SignalingAnswer.Answer -> {
+                        Logger.d(TAG, "Received full answer with SDP")
+                        conn.setRemoteDescription(
+                            SessionDescription(
+                                type = SessionDescriptionType.Answer,
+                                sdp = answer.sdp.value
+                            )
+                        )
+                    }
+
+                    is SignalingAnswer.Candidate -> {
+                        Logger.d(TAG, "Received ICE candidate only")
+                        conn.addIceCandidate(answer.candidate.asLibrary())
+                    }
+                }
+            }
         }
     }
 
     fun sendAdbCommand(command: String) = flow {
-        val device = _activeDevice.value ?: run {
+        val device = _adbDevice.value ?: run {
             Logger.d(TAG, "No active device, cannot send ADB command")
             emit(Result.failure<Unit>(IllegalStateException("No active device")))
             return@flow
@@ -225,7 +265,7 @@ class AppViewModel : ViewModel() {
 
         Logger.d(TAG, "Sending ADB command: $command to device: $device")
 
-        service.sendAdbCommand(
+        adb.sendAdbCommand(
             deviceId = device,
             command = AdbCommand(command)
         ).onEach { result ->
@@ -235,16 +275,13 @@ class AppViewModel : ViewModel() {
     }
 
     fun takeScreenshot() = flow {
-        val device = _activeDevice.value ?: run {
+        val device = _adbDevice.value ?: run {
             Logger.d(TAG, "No active device, cannot take screenshot")
-            emit(Result.failure<ScreenshotResult>(IllegalStateException("No active device")))
             return@flow
         }
 
-        Logger.d(TAG, "Taking screenshot for device: $device")
-
         try {
-            service.takeScreenshot(device).onEach { result ->
+            adb.takeScreenshot(device).onEach { result ->
                 Logger.d(TAG, "Screenshot result: success=${result.isSuccess}, size=${result.imageData.size} bytes")
                 if (result.isSuccess) {
                     emit(Result.success(result))
@@ -257,6 +294,15 @@ class AppViewModel : ViewModel() {
             emit(Result.failure(e))
         }
     }
+
+private fun IceCandidateData.asLibrary(): IceCandidate {
+    val domain = this
+    return IceCandidate(
+        sdpMid = domain.sdpMid,
+        sdpMLineIndex = domain.sdpMLineIndex,
+        candidate = domain.candidate
+    )
+}
 
     companion object {
         private const val TAG = "AppViewModel"

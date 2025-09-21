@@ -11,26 +11,26 @@ import androidx.compose.foundation.layout.safeContentPadding
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import atv_remote.composeapp.generated.resources.Res
 import atv_remote.composeapp.generated.resources.compose_multiplatform
 import kotlinx.coroutines.flow.launchIn
 import org.jetbrains.compose.resources.painterResource
-import org.jetbrains.compose.ui.tooling.preview.Preview
 import tokyo.isseikuzumaki.atvremote.viewmodel.AppViewModel
 
 @Composable
-@Preview
 fun App(
     viewModel: AppViewModel
 ) {
-    val activeVideo by viewModel.activeVideo.collectAsState(initial = null)
-    val devices by viewModel.observeDevices().collectAsState(initial = emptyList())
+    val selectedVideo by viewModel.activeVideo.collectAsStateWithLifecycle(initialValue = null)
+    val adbDevices by viewModel.adbDevices.collectAsStateWithLifecycle(initialValue = emptyList())
+    val waitingList by viewModel.waitingList.collectAsStateWithLifecycle(initialValue = emptyList())
+
     val scope = rememberCoroutineScope()
     MaterialTheme {
         Column(
@@ -41,7 +41,7 @@ fun App(
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             Box {
-                activeVideo?.let {
+                selectedVideo?.let {
                     Video(
                         videoTrack = it,
                         audioTrack = null,
@@ -59,22 +59,35 @@ fun App(
 
 
             Row {
+                // Select Video Source
                 ExpandableDropdownMenu(
                     DropdownData(
-                        items = devices.map { device ->
+                        label = "Video",
+                        items = waitingList.map { session ->
                             DropdownData.Item(
-                                title = "${device.name} - ${device.id.value}",
+                                title = "${session.id}",
                                 onClick = {
-                                    viewModel.selectDevice(device.id)
+                                    viewModel.select(session.id)
                                 }
                             )
                         }
                     )
                 )
 
-                ConnectButton(onClick = {
-                    viewModel.openVideo()
-                })
+                // Select ADB Device
+                ExpandableDropdownMenu(
+                    DropdownData(
+                        label = "ADB",
+                        items = adbDevices.map { device ->
+                            DropdownData.Item(
+                                title = device.name,
+                                onClick = {
+                                    viewModel.select(device.id)
+                                }
+                            )
+                        },
+                    )
+                )
             }
 
             // DPAD Component

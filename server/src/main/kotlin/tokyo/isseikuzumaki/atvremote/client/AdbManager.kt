@@ -1,4 +1,4 @@
-package tokyo.isseikuzumaki.atvremote.service
+package tokyo.isseikuzumaki.atvremote.client
 
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -38,24 +38,25 @@ class AdbManager {
         }
     }
 
-    suspend fun executeCommand(deviceId: DeviceId?, command: AdbCommand): AdbCommandResult = withContext(Dispatchers.IO) {
-        try {
-            val adbCommand = buildAdbCommand(deviceId, command)
-            val process = createAndStartProcess(adbCommand)
-            val output = readProcessOutput(process)
-            val isSuccess = waitForProcessCompletion(process)
+    suspend fun executeCommand(deviceId: DeviceId?, command: AdbCommand): AdbCommandResult =
+        withContext(Dispatchers.IO) {
+            try {
+                val adbCommand = buildAdbCommand(deviceId, command)
+                val process = createAndStartProcess(adbCommand)
+                val output = readProcessOutput(process)
+                val isSuccess = waitForProcessCompletion(process)
 
-            AdbCommandResult(
-                output = output.trim(),
-                isSuccess = isSuccess
-            )
-        } catch (e: Exception) {
-            AdbCommandResult(
-                output = "Error: ${e.message}",
-                isSuccess = false
-            )
+                AdbCommandResult(
+                    output = output.trim(),
+                    isSuccess = isSuccess
+                )
+            } catch (e: Exception) {
+                AdbCommandResult(
+                    output = "Error: ${e.message}",
+                    isSuccess = false
+                )
+            }
         }
-    }
 
     private fun buildAdbCommand(deviceId: DeviceId?, command: AdbCommand): List<String> {
         return buildList {
@@ -106,38 +107,39 @@ class AdbManager {
         }
     }
 
-    suspend fun takeScreenshot(deviceId: DeviceId?): ScreenshotResult = withContext(Dispatchers.IO) {
-        try {
-            val timestamp = System.currentTimeMillis()
-            val fileName = "screenshot_${deviceId?.value ?: "unknown"}_$timestamp.png"
-            
-            // Build adb command to take screenshot
-            val adbCommand = buildList {
-                add(adbPath)
-                if (deviceId != null) {
-                    add("-s")
-                    add(deviceId.value)
+    suspend fun takeScreenshot(deviceId: DeviceId?): ScreenshotResult =
+        withContext(Dispatchers.IO) {
+            try {
+                val timestamp = System.currentTimeMillis()
+                val fileName = "screenshot_${deviceId?.value ?: "unknown"}_$timestamp.png"
+
+                // Build adb command to take screenshot
+                val adbCommand = buildList {
+                    add(adbPath)
+                    if (deviceId != null) {
+                        add("-s")
+                        add(deviceId.value)
+                    }
+                    add("exec-out")
+                    add("screencap")
+                    add("-p")
                 }
-                add("exec-out")
-                add("screencap")
-                add("-p")
+
+                val process = createAndStartProcess(adbCommand)
+                val imageData = process.inputStream.readBytes()
+                val isSuccess = waitForProcessCompletion(process)
+
+                ScreenshotResult(
+                    imageData = imageData,
+                    isSuccess = isSuccess && imageData.isNotEmpty(),
+                    fileName = fileName
+                )
+            } catch (e: Exception) {
+                ScreenshotResult(
+                    imageData = ByteArray(0),
+                    isSuccess = false,
+                    fileName = "error_screenshot.png"
+                )
             }
-            
-            val process = createAndStartProcess(adbCommand)
-            val imageData = process.inputStream.readBytes()
-            val isSuccess = waitForProcessCompletion(process)
-            
-            ScreenshotResult(
-                imageData = imageData,
-                isSuccess = isSuccess && imageData.isNotEmpty(),
-                fileName = fileName
-            )
-        } catch (e: Exception) {
-            ScreenshotResult(
-                imageData = ByteArray(0),
-                isSuccess = false,
-                fileName = "error_screenshot.png"
-            )
         }
-    }
 }

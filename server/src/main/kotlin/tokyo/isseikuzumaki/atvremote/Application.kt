@@ -4,6 +4,7 @@ import io.ktor.server.application.*
 import io.ktor.server.engine.*
 import io.ktor.server.netty.*
 import tokyo.isseikuzumaki.atvremote.plugins.*
+import tokyo.isseikuzumaki.atvremote.service.signaling.SignalingServiceImpl
 import tokyo.isseikuzumaki.atvremote.shared.SERVER_DOMAIN
 import tokyo.isseikuzumaki.atvremote.shared.SERVER_PORT
 
@@ -13,6 +14,9 @@ fun main() {
 }
 
 fun Application.module() {
+    val sessionManagement = SessionManager()
+    val signalingService = SignalingServiceImpl(this, sessionManagement)
     configureRPC()
-    configureRouting()
+    configureRouting(signalingService, sessionManagement)
+    configureClient(signalingService, sessionManagement)
 }

@@ -6,25 +6,15 @@ import kotlinx.rpc.annotations.Rpc
 /**
  * クライアント → サーバー への RPC サービス
  * WebRTC シグナリングとADBコマンド実行を担当
+ *
+ * TODO: セッションによって adb 接続を分ける
  */
 @Rpc
-interface AtvControlService {
+interface IAtvControlService {
     /**
      * adb デバイスのリストを取得します。
      */
     fun adbDevices(): Flow<List<AdbDevice>>
-
-    /**
-     * WebRTC接続を開始するため、クライアントのSDP Offerをサーバーに送信します。
-     * @param offer SDP Offer情報を含むデータクラス。
-     */
-    fun sendSdpOffer(deviceId: DeviceId, offer: SdpOffer): Flow<SdpAnswer>
-
-    /**
-     * クライアント側で発見されたICE Candidateをサーバーに送信します。
-     * @param candidate ICE Candidate情報を含むデータクラス。
-     */
-    fun sendIceCandidate(deviceId: DeviceId, candidate: IceCandidateData): Flow<IceCandidateData>
 
     /**
      * 指定されたADBコマンドの実行をサーバーに要求します。
