@@ -187,10 +187,13 @@ class WebRTCClientImpl(
     private fun createVideoSource(): VideoDeviceSource {
         Logger.d(TAG, "Creating video source for device: ${videoCapture.name}")
         val videoSource = VideoDeviceSource().apply {
-            val capabilities = MediaDevices.getVideoCaptureCapabilities(videoCapture).firstOrNull()
+            val capabilities = MediaDevices.getVideoCaptureCapabilities(videoCapture)
                 ?: throw IllegalStateException("No capabilities found for video device: ${videoCapture.name}")
             setVideoCaptureDevice(videoCapture)
-            setVideoCaptureCapability(capabilities)
+            capabilities.forEach {
+                Logger.d(TAG, "Capability: $it")
+                setVideoCaptureCapability(it)
+            }
         }
         videoSource.start()
         return videoSource

@@ -16,4 +16,8 @@ captures
 !*.xcodeproj/project.xcworkspace/
 !*.xcworkspace/contents.xcworkspacedata
 **/xcshareddata/WorkspaceSettings.xcsettings
+*/Pods/
+Local.xcconfig
+*.podspec
+*xcuserdata
 .env

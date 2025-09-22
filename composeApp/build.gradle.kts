@@ -1,5 +1,9 @@
+@file:OptIn(ExperimentalKotlinGradlePluginApi::class)
+
+import org.jetbrains.kotlin.gradle.ExperimentalKotlinGradlePluginApi
 import org.jetbrains.kotlin.gradle.ExperimentalWasmDsl
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
+import org.jetbrains.kotlin.gradle.plugin.mpp.NativeBuildType
 import org.jetbrains.kotlin.gradle.targets.js.webpack.KotlinWebpackConfig
 
 plugins {
@@ -8,6 +12,7 @@ plugins {
     alias(libs.plugins.composeMultiplatform)
     alias(libs.plugins.composeCompiler)
     alias(libs.plugins.kotlinxRpc)
+    kotlin("native.cocoapods")
 }
 
 kotlin {
@@ -16,16 +21,34 @@ kotlin {
             jvmTarget.set(JvmTarget.JVM_18)
         }
     }
-    
-    listOf(
-        iosArm64(),
-        iosSimulatorArm64()
-    ).forEach { iosTarget ->
-        iosTarget.binaries.framework {
+
+    cocoapods {
+        version = "1.0"
+        summary = "Some description for a Kotlin/Native module"
+        homepage = "Not yet"
+        ios.deploymentTarget = "18.0"
+
+        framework {
             baseName = "ComposeApp"
-            isStatic = true
+            isStatic = false
         }
+
+        pod("WebRTC-SDK") {
+            version = libs.versions.webrtc.ios.get()
+            moduleName = "WebRTC"
+            packageName = "WebRTC"
+            linkOnly = true
+        }
+
+        podfile = project.file("../iosApp/Podfile")
+
+        xcodeConfigurationToNativeBuildType["CUSTOM_DEBUG"] = NativeBuildType.DEBUG
+        xcodeConfigurationToNativeBuildType["CUSTOM_RELEASE"] = NativeBuildType.RELEASE
     }
+
+
+    iosArm64()
+    iosSimulatorArm64()
     
     @OptIn(ExperimentalWasmDsl::class)
     wasmJs {
@@ -78,6 +101,9 @@ kotlin {
         }
         wasmJsMain.dependencies {
             implementation(libs.ktor.clientEngine.js)
+        }
+        iosMain.dependencies {
+            implementation(libs.ktor.clientEngine.ios)
         }
     }
 }
