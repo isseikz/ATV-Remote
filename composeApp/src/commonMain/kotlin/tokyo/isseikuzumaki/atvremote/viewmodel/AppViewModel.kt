@@ -98,6 +98,7 @@ class AppViewModel : ViewModel() {
     // WebRTC自動再接続用の状態管理
     private val _isReconnecting = MutableStateFlow(false)
     val isReconnecting = _isReconnecting.asStateFlow()
+    private var currentPeerConnection: PeerConnection? = null
 
     fun select(adbDevice: DeviceId) {
         _adbDevice.value = adbDevice
@@ -112,12 +113,33 @@ class AppViewModel : ViewModel() {
         }
 
         if (_videoSession.value != null) {
-            Logger.todo(TAG, "Another device is active, closing existing connection")
-            // TODO: Close existing connection
+            Logger.d(TAG, "Closing existing connection for session: ${_videoSession.value}")
+            closeCurrentConnection()
         }
 
         _videoSession.value = sessionId
         openVideo()
+    }
+
+    /**
+     * 現在のWebRTC接続をクリーンアップ
+     */
+    private fun closeCurrentConnection() {
+        Logger.d(TAG, "Closing current WebRTC connection")
+
+        // 現在のVideoTrackをクリア
+        _activeVideo.value = null
+
+        // PeerConnectionをクローズ
+        currentPeerConnection?.let { conn ->
+            try {
+                conn.close()
+                Logger.d(TAG, "PeerConnection closed successfully")
+            } catch (e: Exception) {
+                Logger.e(TAG, "Error closing PeerConnection: ${e.message}")
+            }
+        }
+        currentPeerConnection = null
     }
 
     fun openVideo() {
@@ -143,6 +165,7 @@ class AppViewModel : ViewModel() {
         )
 
         val conn = PeerConnection(configuration).apply {
+            currentPeerConnection = this
             onIceCandidate.onEach { candidate ->
                 Logger.d(
                     TAG, "onIceCandidate: $candidate"
@@ -290,9 +313,7 @@ class AppViewModel : ViewModel() {
         Logger.d(TAG, "Starting WebRTC reconnection process")
 
         try {
-            // 現在のビデオ接続をクリア
-            _activeVideo.value = null
-            // 既存のopenVideo()関数を再利用して新しい接続を開始
+            closeCurrentConnection()
             openVideo()
         } finally {
             _isReconnecting.value = false
@@ -338,14 +359,20 @@ class AppViewModel : ViewModel() {
         }
     }
 
-private fun IceCandidateData.asLibrary(): IceCandidate {
-    val domain = this
-    return IceCandidate(
-        sdpMid = domain.sdpMid,
-        sdpMLineIndex = domain.sdpMLineIndex,
-        candidate = domain.candidate
-    )
-}
+    private fun IceCandidateData.asLibrary(): IceCandidate {
+        val domain = this
+        return IceCandidate(
+            sdpMid = domain.sdpMid,
+            sdpMLineIndex = domain.sdpMLineIndex,
+            candidate = domain.candidate
+        )
+    }
+
+    override fun onCleared() {
+        super.onCleared()
+        Logger.d(TAG, "ViewModel is being cleared, cleaning up connections")
+        closeCurrentConnection()
+    }
 
     companion object {
         private const val TAG = "AppViewModel"
