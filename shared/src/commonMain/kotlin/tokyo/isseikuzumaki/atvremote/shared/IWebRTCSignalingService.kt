@@ -59,15 +59,9 @@ data class IceCandidateData(
  */
 @Rpc
 interface ISignalingService {
-    /**
-     * クライアントからのOfferを受け取り、対応するAnswerを返す
-     * @param offer クライアントから送信されたSDP Offer
-     * @return 対応するSDP AnswerとICE Candidate
-     */
-    fun offer(offer: SignalingOffer): Flow<SignalingAnswer>
 
     /**
-     * ウェイティングリストに自身のセッションを登録して、Offer を待機する
+     * クライアントA が ウェイティングリストに自身を登録して、Offer を待機する
      *
      * @param request セッションの詳細情報
      * @return SDP Offer
@@ -75,7 +69,14 @@ interface ISignalingService {
     fun waitForOffer(request: SessionRequest): Flow<SignalingOffer>
 
     /**
-     * Offer に対する Answer を送信する
+     * クライアントB が待機中のクライアントA に Offer を送信し、Answer を待ち受ける
+     * @param offer クライアントから送信されたSDP Offer
+     * @return 対応するSDP AnswerとICE Candidate
+     */
+    fun offer(offer: SignalingOffer): Flow<SignalingAnswer>
+
+    /**
+     * クライアントA がクライアントB に Answer を送信し、Candidate を待ち受ける
      *
      * @param answer SDP Answer
      * @return リモートデバイスの ICE Candidate. これを setRemoteDescription 後に addIceCandidate で追加する
@@ -83,7 +84,7 @@ interface ISignalingService {
     fun answer(answer: SignalingAnswer): Flow<SignalingCandidate>
 
     /**
-     * クライアントからのICE Candidateを受け取り、保存する
+     * 自身の通信経路が変わったときに、相手に新しい Candidate を送信する
      * @param candidate クライアントから送信されたICE Candidate情報
      */
     fun putIceCandidates(candidate: SignalingCandidate): Flow<Unit>
