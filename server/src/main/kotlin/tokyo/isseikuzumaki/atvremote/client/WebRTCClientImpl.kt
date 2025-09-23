@@ -187,6 +187,12 @@ class WebRTCClientImpl(
     }
 
     private fun createVideoSource(): VideoDeviceSource {
+        // 再接続時の状態リセット
+        if (isCleanedUp) {
+            Logger.d(TAG, "Resetting cleanup state for reconnection of device: ${videoCapture.name}")
+            isCleanedUp = false
+        }
+
         Logger.d(TAG, "Creating video source for device: ${videoCapture.name}")
         val source = VideoDeviceSource().apply {
             val capabilities = MediaDevices.getVideoCaptureCapabilities(videoCapture)
@@ -208,11 +214,11 @@ class WebRTCClientImpl(
      */
     fun cleanup() {
         if (isCleanedUp) {
-            Logger.d(TAG, "Cleanup already performed for device: ${videoCapture.name}")
+            Logger.d(TAG, "Cleanup already performed for device: ${videoCapture.name}, skipping")
             return
         }
 
-        Logger.d(TAG, "Cleaning up WebRTC client resources for device: ${videoCapture.name}")
+        Logger.d(TAG, "Starting cleanup of WebRTC client resources for device: ${videoCapture.name}")
         isCleanedUp = true
 
         // 1. まずPeerConnectionを閉じる（VideoSourceへの参照を切断）
@@ -257,17 +263,89 @@ class WebRTCClientImpl(
     fun isVideoSourceActive(): Boolean = videoSource != null && !isCleanedUp
 
     /**
+     * 再接続可能かどうかを判定
+     * @return クリーンアップ済みでも再接続可能な場合はtrue
+     */
+    fun canReconnect(): Boolean = true // WebRTCClientImplは常に再接続可能
+
+    /**
+     * 明示的な再接続準備
+     * クリーンアップ後の再接続で呼び出される
+     */
+    fun prepareForReconnection() {
+        Logger.d(TAG, "Preparing for reconnection of device: ${videoCapture.name}")
+        if (isCleanedUp) {
+            isCleanedUp = false
+            Logger.d(TAG, "Reset cleanup state for device: ${videoCapture.name}")
+        }
+    }
+
+    /**
      * ビデオキャプチャを選択して開始し、WebRTC の
      */
     class Factory(
         private val turnServerService: TurnServerService,
     ) {
+        private val clientRegistry = mutableMapOf<String, WebRTCClientImpl>()
+
         fun getDevices(): List<VideoDevice> {
             return MediaDevices.getVideoCaptureDevices()
         }
 
         fun createClient(videoDevice: VideoDevice): WebRTCClientImpl {
             return WebRTCClientImpl(videoDevice, turnServerService)
+        }
+
+        /**
+         * デバイス名に基づいてクライアントを取得または作成
+         * 既存のクライアントがある場合は再利用（再接続準備付き）
+         *
+         * 使用例:
+         * ```
+         * // カメラ接続時
+         * val client = factory.getOrCreateClient(videoDevice)
+         *
+         * // カメラ切断時
+         * factory.cleanupClient(videoDevice.name)
+         *
+         * // カメラ再接続時（同じクライアントが再利用される）
+         * val sameClient = factory.getOrCreateClient(videoDevice)
+         * ```
+         */
+        fun getOrCreateClient(videoDevice: VideoDevice): WebRTCClientImpl {
+            val deviceKey = videoDevice.name
+            val existingClient = clientRegistry[deviceKey]
+
+            return if (existingClient != null && existingClient.canReconnect()) {
+                Logger.d("WebRTCClientFactory", "Reusing existing client for device: ${videoDevice.name}")
+                existingClient.prepareForReconnection()
+                existingClient
+            } else {
+                Logger.d("WebRTCClientFactory", "Creating new client for device: ${videoDevice.name}")
+                val newClient = WebRTCClientImpl(videoDevice, turnServerService)
+                clientRegistry[deviceKey] = newClient
+                newClient
+            }
+        }
+
+        /**
+         * 使用されなくなったクライアントをクリーンアップ
+         */
+        fun cleanupClient(deviceName: String) {
+            clientRegistry[deviceName]?.let { client ->
+                Logger.d("WebRTCClientFactory", "Cleaning up client for device: $deviceName")
+                client.cleanup()
+                // クライアントはレジストリに残す（再接続時の再利用のため）
+            }
+        }
+
+        /**
+         * 全クライアントをクリーンアップ（シャットダウン時用）
+         */
+        fun cleanupAllClients() {
+            Logger.d("WebRTCClientFactory", "Cleaning up all clients")
+            clientRegistry.values.forEach { it.cleanup() }
+            clientRegistry.clear()
         }
     }
 
@@ -303,12 +381,12 @@ class WebRTCClientImpl(
                     client.cleanup()
                 }
                 RTCIceConnectionState.DISCONNECTED -> {
-                    Logger.e(TAG, "Server-side ICE connection disconnected")
-                    // 接続断線を記録、必要に応じて後で再接続準備
+                    Logger.d(TAG, "Server-side ICE connection disconnected (may recover automatically)")
+                    // DISCONNECTEDは一時的な状態の場合があるため、cleanup()は呼ばない
                 }
                 RTCIceConnectionState.CLOSED -> {
-                    Logger.d(TAG, "Server-side ICE connection closed, cleaning up")
-                    client.cleanup()
+                    Logger.d(TAG, "Server-side ICE connection closed")
+                    // CLOSEDは既にcleanup()が実行された結果の可能性が高いため、重複防止のため呼ばない
                 }
                 else -> {
                     // その他の状態はログのみ
@@ -325,12 +403,12 @@ class WebRTCClientImpl(
                     client.cleanup()
                 }
                 RTCPeerConnectionState.DISCONNECTED -> {
-                    Logger.e(TAG, "Server-side peer connection disconnected")
-                    // 接続断線を記録
+                    Logger.d(TAG, "Server-side peer connection disconnected (may recover automatically)")
+                    // DISCONNECTEDは一時的な状態の場合があるため、cleanup()は呼ばない
                 }
                 RTCPeerConnectionState.CLOSED -> {
-                    Logger.d(TAG, "Server-side peer connection closed, cleaning up")
-                    client.cleanup()
+                    Logger.d(TAG, "Server-side peer connection closed")
+                    // CLOSEDは既にcleanup()が実行された結果の可能性が高いため、重複防止のため呼ばない
                 }
                 else -> {
                     // その他の状態はログのみ
