@@ -52,6 +52,8 @@ class WebRTCClientImpl(
     private val turnServerService: TurnServerService,
 ) : ISignalingClient {
     private val localConnection = MutableStateFlow<RTCPeerConnection?>(null)
+    private var videoSource: VideoDeviceSource? = null
+    private var isCleanedUp = false
     override fun handleOffer(offer: SdpOffer): Flow<SdpAnswer> = flow {
         Logger.d(TAG, "Handling offer: $offer")
         val localConfig = RTCConfiguration().apply {
@@ -111,7 +113,7 @@ class WebRTCClientImpl(
         Logger.d(TAG, "Creating PeerConnection with config: $config")
         val factory = PeerConnectionFactory()
 
-        val collector = CandidateCollector()
+        val collector = CandidateCollector(this@WebRTCClientImpl)
         val conn: RTCPeerConnection = factory.createPeerConnection(config, collector)
 
         Logger.d(TAG, "Waiting for ICE candidates to be gathered...")
@@ -186,7 +188,7 @@ class WebRTCClientImpl(
 
     private fun createVideoSource(): VideoDeviceSource {
         Logger.d(TAG, "Creating video source for device: ${videoCapture.name}")
-        val videoSource = VideoDeviceSource().apply {
+        val source = VideoDeviceSource().apply {
             val capabilities = MediaDevices.getVideoCaptureCapabilities(videoCapture)
                 ?: throw IllegalStateException("No capabilities found for video device: ${videoCapture.name}")
             setVideoCaptureDevice(videoCapture)
@@ -195,9 +197,64 @@ class WebRTCClientImpl(
                 setVideoCaptureCapability(it)
             }
         }
-        videoSource.start()
-        return videoSource
+        source.start()
+        videoSource = source // 参照を保持
+        return source
     }
+
+    /**
+     * WebRTCリソースのクリーンアップ処理
+     * VideoSourceの停止とPeerConnectionの解放を行う
+     */
+    fun cleanup() {
+        if (isCleanedUp) {
+            Logger.d(TAG, "Cleanup already performed for device: ${videoCapture.name}")
+            return
+        }
+
+        Logger.d(TAG, "Cleaning up WebRTC client resources for device: ${videoCapture.name}")
+        isCleanedUp = true
+
+        // 1. まずPeerConnectionを閉じる（VideoSourceへの参照を切断）
+        localConnection.value?.let { conn ->
+            try {
+                Logger.d(TAG, "Closing PeerConnection...")
+                conn.close()
+                Logger.d(TAG, "PeerConnection closed successfully")
+            } catch (e: Exception) {
+                Logger.e(TAG, "Error closing PeerConnection: ${e.message}")
+            }
+        }
+        localConnection.value = null
+
+        // 2. 少し待機してからVideoSourceを停止（JNI呼び出しの競合を避ける）
+        try {
+            Thread.sleep(100) // 100ms待機
+        } catch (e: InterruptedException) {
+            Thread.currentThread().interrupt()
+        }
+
+        // 3. VideoSourceを停止
+        videoSource?.let { source ->
+            try {
+                Logger.d(TAG, "Stopping VideoSource...")
+                source.stop()
+                Logger.d(TAG, "VideoSource stopped successfully")
+            } catch (e: Exception) {
+                Logger.e(TAG, "Error stopping VideoSource: ${e.message}")
+                // VideoSource停止でエラーが発生してもアプリケーションを継続
+            }
+        }
+        videoSource = null
+
+        Logger.d(TAG, "WebRTC client cleanup completed for device: ${videoCapture.name}")
+    }
+
+    /**
+     * VideoSourceがアクティブかどうかを判定
+     * @return VideoSourceが作成され、まだクリーンアップされていない場合はtrue
+     */
+    fun isVideoSourceActive(): Boolean = videoSource != null && !isCleanedUp
 
     /**
      * ビデオキャプチャを選択して開始し、WebRTC の
@@ -217,7 +274,9 @@ class WebRTCClientImpl(
     /** ローカルの ICE Candidate 情報を収集し、一覧を返す
      *
      */
-    class CandidateCollector() : PeerConnectionObserver {
+    class CandidateCollector(
+        private val client: WebRTCClientImpl
+    ) : PeerConnectionObserver {
         sealed class State {
             object Gathering : State()
             data class Complete(
@@ -237,11 +296,47 @@ class WebRTCClientImpl(
         }
 
         override fun onIceConnectionChange(state: RTCIceConnectionState) {
-            Logger.todo(TAG, "onIceConnectionChange: $state")
+            Logger.d(TAG, "onIceConnectionChange: $state")
+            when (state) {
+                RTCIceConnectionState.FAILED -> {
+                    Logger.e(TAG, "Server-side ICE connection failed, cleaning up resources")
+                    client.cleanup()
+                }
+                RTCIceConnectionState.DISCONNECTED -> {
+                    Logger.e(TAG, "Server-side ICE connection disconnected")
+                    // 接続断線を記録、必要に応じて後で再接続準備
+                }
+                RTCIceConnectionState.CLOSED -> {
+                    Logger.d(TAG, "Server-side ICE connection closed, cleaning up")
+                    client.cleanup()
+                }
+                else -> {
+                    // その他の状態はログのみ
+                    Logger.d(TAG, "ICE connection state: $state")
+                }
+            }
         }
 
         override fun onConnectionChange(state: RTCPeerConnectionState) {
-            Logger.todo(TAG, "onConnectionChange: $state")
+            Logger.d(TAG, "onConnectionChange: $state")
+            when (state) {
+                RTCPeerConnectionState.FAILED -> {
+                    Logger.e(TAG, "Server-side peer connection failed, cleaning up")
+                    client.cleanup()
+                }
+                RTCPeerConnectionState.DISCONNECTED -> {
+                    Logger.e(TAG, "Server-side peer connection disconnected")
+                    // 接続断線を記録
+                }
+                RTCPeerConnectionState.CLOSED -> {
+                    Logger.d(TAG, "Server-side peer connection closed, cleaning up")
+                    client.cleanup()
+                }
+                else -> {
+                    // その他の状態はログのみ
+                    Logger.d(TAG, "Peer connection state: $state")
+                }
+            }
         }
 
         override fun onSignalingChange(state: RTCSignalingState) {

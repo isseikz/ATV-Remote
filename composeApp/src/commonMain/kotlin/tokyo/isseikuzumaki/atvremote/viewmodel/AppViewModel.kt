@@ -18,6 +18,7 @@ import com.shepeliev.webrtckmp.onIceConnectionStateChange
 import com.shepeliev.webrtckmp.onSignalingStateChange
 import com.shepeliev.webrtckmp.onTrack
 import io.ktor.client.HttpClient
+import io.ktor.client.plugins.HttpRequestRetry
 import io.ktor.http.path
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -54,6 +55,13 @@ import kotlin.reflect.typeOf
 class AppViewModel : ViewModel() {
     val rpcClient by lazy {
         HttpClient {
+            install(HttpRequestRetry) {
+                retryOnServerErrors(maxRetries = 3)
+                retryIf { _, httpResponse ->
+                    httpResponse.status.value >= 500
+                }
+                delayMillis { retry -> retry * 1000L } // 1秒、2秒、3秒
+            }
             installKrpc {
                 waitForServices = true
             }
@@ -86,6 +94,10 @@ class AppViewModel : ViewModel() {
 
     private val _adbDevice = MutableStateFlow<DeviceId?>(null)
     val adbDevice = _adbDevice.asStateFlow()
+
+    // WebRTC自動再接続用の状態管理
+    private val _isReconnecting = MutableStateFlow(false)
+    val isReconnecting = _isReconnecting.asStateFlow()
 
     fun select(adbDevice: DeviceId) {
         _adbDevice.value = adbDevice
@@ -193,11 +205,19 @@ class AppViewModel : ViewModel() {
                     }
 
                     IceConnectionState.Failed -> {
-                        Logger.todo(TAG, "IceConnectionState.Failed")
+                        Logger.e(TAG, "WebRTC connection failed, attempting reconnect...")
+                        viewModelScope.launch {
+                            delay(3000) // 3秒待機
+                            reopenVideo()
+                        }
                     }
 
                     IceConnectionState.Disconnected -> {
-                        Logger.todo(TAG, "IceConnectionState.Disconnected")
+                        Logger.e(TAG, "WebRTC disconnected, attempting reconnect...")
+                        viewModelScope.launch {
+                            delay(1000) // 1秒待機
+                            reopenVideo()
+                        }
                     }
 
                     IceConnectionState.Closed -> {
@@ -253,6 +273,29 @@ class AppViewModel : ViewModel() {
                     }
                 }
             }
+        }
+    }
+
+    /**
+     * WebRTC接続の再接続処理
+     * 重複実行を防止し、既存の接続をクリアしてから新しい接続を開始する
+     */
+    private fun reopenVideo() {
+        if (_isReconnecting.value) {
+            Logger.d(TAG, "Already reconnecting, skipping duplicate reconnect attempt")
+            return
+        }
+
+        _isReconnecting.value = true
+        Logger.d(TAG, "Starting WebRTC reconnection process")
+
+        try {
+            // 現在のビデオ接続をクリア
+            _activeVideo.value = null
+            // 既存のopenVideo()関数を再利用して新しい接続を開始
+            openVideo()
+        } finally {
+            _isReconnecting.value = false
         }
     }
 
