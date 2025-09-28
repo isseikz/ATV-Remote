@@ -1,4 +1,4 @@
-rootProject.name = "ATV-Remote"
+rootProject.name = "signalinglib"
 enableFeaturePreview("TYPESAFE_PROJECT_ACCESSORS")
 
 pluginManagement {
@@ -28,7 +28,12 @@ dependencyResolutionManagement {
     }
 }
 
-include(":composeApp")
-include(":server")
-include(":shared")
-include(":composeApp:androidmain")
+// Signalinglib library modules
+include(":shared")           // 汎用シグナリング共通コード
+include(":server")           // シグナリングサーバーライブラリ
+include(":client")           // シグナリングクライアントライブラリ
+
+// Demo application modules
+include(":demo:shared")      // デモアプリ専用共通コード
+include(":demo:server")      // デモアプリサーバー
+include(":demo:composeApp")  // デモアプリUI
