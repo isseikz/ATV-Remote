@@ -1,66 +1,141 @@
-This is a Kotlin Multiplatform project targeting Android, iOS, Web, Server.
+# Signaling Library & ATV-Remote Demo
 
-* [/composeApp](./composeApp/src) is for code that will be shared across your Compose Multiplatform applications.
-  It contains several subfolders:
-  - [commonMain](./composeApp/src/commonMain/kotlin) is for code that’s common for all targets.
-  - Other folders are for Kotlin code that will be compiled for only the platform indicated in the folder name.
-    For example, if you want to use Apple’s CoreCrypto for the iOS part of your Kotlin app,
-    the [iosMain](./composeApp/src/iosMain/kotlin) folder would be the right place for such calls.
-    Similarly, if you want to edit the Desktop (JVM) specific part, the [jvmMain](./composeApp/src/jvmMain/kotlin)
-    folder is the appropriate location.
+This is a Kotlin Multiplatform project providing a generic WebRTC signaling library with an ATV-Remote demo application targeting Android, iOS, Web, and Server.
 
-* [/iosApp](./iosApp/iosApp) contains iOS applications. Even if you’re sharing your UI with Compose Multiplatform,
-  you need this entry point for your iOS app. This is also where you should add SwiftUI code for your project.
+## Project Structure
 
-* [/server](./server/src/main/kotlin) is for the Ktor server application.
+The project is organized into two main parts:
 
-* [/shared](./shared/src) is for the code that will be shared between all targets in the project.
-  The most important subfolder is [commonMain](./shared/src/commonMain/kotlin). If preferred, you
-  can add code to the platform-specific folders here too.
+### 📚 Generic Signaling Library (`signalinglib`)
 
-### Build and Run Android Application
+Reusable WebRTC signaling components for any WebRTC application:
 
-To build and run the development version of the Android app, use the run configuration from the run widget
-in your IDE’s toolbar or build it directly from the terminal:
-- on macOS/Linux
-  ```shell
-  ./gradlew :composeApp:assembleDebug
-  ```
-- on Windows
-  ```shell
-  .\gradlew.bat :composeApp:assembleDebug
-  ```
+* **[/shared](./shared/src)** - Common WebRTC signaling interfaces and models
+  - [commonMain](./shared/src/commonMain/kotlin) contains RPC service interfaces (`ISignalingService`, `ISessionService`) and data models
+  - Platform-specific implementations for Android, iOS, JVM, and WebAssembly
 
-### Build and Run Server
+* **[/server](./server/src)** - WebRTC signaling server library
+  - [main/kotlin](./server/src/main/kotlin) contains signaling server implementation (`SignalingServiceImpl`, `SessionManager`)
+  - Can be used as a dependency in other server applications
 
-To build and run the development version of the server, use the run configuration from the run widget
-in your IDE’s toolbar or run it directly from the terminal:
-- on macOS/Linux
-  ```shell
-  ./gradlew :server:run
-  ```
-- on Windows
-  ```shell
-  .\gradlew.bat :server:run
-  ```
+* **[/client](./client/src)** - WebRTC signaling client library
+  - [commonMain](./client/src/commonMain/kotlin) contains client-side WebRTC wrapper and signaling client
+  - Multiplatform support for Android, iOS, and Web
 
-### Build and Run Web Application
+### 🎮 Demo Application (`demo`)
 
-To build and run the development version of the web app, use the run configuration from the run widget
-in your IDE’s toolbar or run it directly from the terminal:
-- on macOS/Linux
-  ```shell
-  ./gradlew :composeApp:wasmJsBrowserDevelopmentRun
-  ```
-- on Windows
-  ```shell
-  .\gradlew.bat :composeApp:wasmJsBrowserDevelopmentRun
-  ```
+ATV-Remote demo showcasing the signaling library usage:
 
-### Build and Run iOS Application
+* **[/demo/shared](./demo/shared/src)** - ATV-Remote specific shared code
+  - Contains ADB control interfaces and Android TV specific data models
 
-To build and run the development version of the iOS app, use the run configuration from the run widget
-in your IDE’s toolbar or open the [/iosApp](./iosApp) directory in Xcode and run it from there.
+* **[/demo/server](./demo/server/src)** - ATV-Remote signaling server
+  - [main/kotlin](./demo/server/src/main/kotlin) contains the server application with ADB device management
+  - Uses the generic signaling library with ATV-specific functionality
+
+* **[/demo/composeApp](./demo/composeApp/src)** - ATV-Remote client application
+  - [commonMain](./demo/composeApp/src/commonMain/kotlin) contains the UI and client logic
+  - Platform-specific implementations for Android, iOS, and Web
+  - Demonstrates D-pad controls, video streaming, and device management
+
+* **[/iosApp](./iosApp)** - iOS application entry point
+  - Contains iOS application configuration and SwiftUI integration
+
+## Architecture
+
+```
+signalinglib (Root project)
+├── shared/           # Generic WebRTC signaling interfaces & models
+├── server/           # Generic signaling server library
+├── client/           # Generic signaling client library
+└── demo/            # ATV-Remote demo application
+    ├── shared/       # ATV-specific shared code
+    ├── server/       # ATV-Remote server (uses signaling library)
+    └── composeApp/   # ATV-Remote UI (uses signaling library)
+```
+
+## Build and Run
+
+### Build Generic Library
+
+To build the reusable signaling library components:
+
+```shell
+# Build all library components
+./gradlew :shared:build :server:build :client:build
+
+# Or build individually
+./gradlew :shared:build      # Core interfaces and models
+./gradlew :server:build      # Server library
+./gradlew :client:build      # Client library
+```
+
+### Build and Run Demo Application
+
+**Server (ATV-Remote signaling server):**
+```shell
+./gradlew :demo:server:runApp
+```
+
+**Android Application:**
+```shell
+./gradlew :demo:composeApp:assembleDebug
+```
+
+**Web Application:**
+```shell
+./gradlew :demo:composeApp:wasmJsBrowserDevelopmentRun
+```
+
+**iOS Application:**
+Open the [/iosApp](./iosApp) directory in Xcode and run it from there, or use the IDE's run configuration.
+
+### Development Commands
+
+**Test all components:**
+```shell
+./gradlew test
+./gradlew :demo:composeApp:testDebugUnitTest    # Android tests
+./gradlew :shared:commonTest                    # Shared module tests
+```
+
+**Build everything:**
+```shell
+./gradlew build
+```
+
+## Using the Signaling Library
+
+The generic signaling library can be used in other WebRTC projects:
+
+1. **Add dependencies** to your `build.gradle.kts`:
+   ```kotlin
+   dependencies {
+       implementation(project(":shared"))      // Core interfaces
+       implementation(project(":server"))      // For server applications
+       implementation(project(":client"))      // For client applications
+   }
+   ```
+
+2. **Implement signaling services** using `ISignalingService` and `ISessionService`
+
+3. **Use WebRTC client** with `SignalingClient` and `WebRTCWrapper`
+
+See the [demo application](./demo) for complete implementation examples.
+
+## Technology Stack
+
+- **Kotlin Multiplatform** - Cross-platform development
+- **Compose Multiplatform** - Declarative UI framework
+- **Ktor** - Server framework with WebSocket support
+- **kotlinx-rpc** - Type-safe RPC communication
+- **WebRTC-KMP** - Multiplatform WebRTC implementation
+- **WebRTC-SDK** (iOS) - Native iOS WebRTC support
+
+## Documentation
+
+- [Design Specification](./docs/design.md) - Detailed architecture and design decisions
+- [API Specification](./docs/server-client-api-specification.md) - RPC service interfaces and communication protocols
 
 ---
 

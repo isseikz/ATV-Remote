@@ -173,32 +173,6 @@ signalinglib:demo:composeApp → signalinglib:client, signalinglib:demo:shared
 * `DPadComponent`: Android TV リモートコントロール UI
 * `ExpandableDropDown`: デバイス選択UI
 
-## 移行計画 📋
-
-### Phase 1: 新しいモジュール構造のセットアップ
-1. rootProject.name を "signalinglib" に変更
-2. 新しいモジュールディレクトリの作成
-3. 各モジュールのbuild.gradle.kts設定
-
-### Phase 2: 汎用WebRTCコードの移行
-1. `ISignalingService`関連を`signalinglib:shared`に移行
-2. `SignalingServiceImpl`を`signalinglib:server`に移行
-3. クライアント機能を`signalinglib:client`に移行
-
-### Phase 3: アプリケーション固有コードの移行
-1. `IAtvControlService`を`signalinglib:demo:shared`に移行
-2. ADB関連実装を`signalinglib:demo:server`に移行
-3. UI コンポーネントを`signalinglib:demo:composeApp`に移行
-
-### Phase 4: 依存関係とビルド設定の更新
-1. settings.gradle.ktsの更新
-2. 各モジュール間の依存関係設定
-3. パッケージ名の統一
-
-### Phase 5: テストと検証
-1. ライブラリ部分の独立ビルド確認
-2. デモアプリケーションの動作確認
-3. WebRTCシグナリング機能の検証
 
 ## 期待される効果 🎯
 
