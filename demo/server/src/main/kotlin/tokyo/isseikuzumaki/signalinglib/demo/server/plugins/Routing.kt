@@ -12,10 +12,17 @@ import tokyo.isseikuzumaki.signalinglib.demo.shared.IAtvControlService
 import tokyo.isseikuzumaki.signalinglib.shared.ISessionService
 import tokyo.isseikuzumaki.signalinglib.shared.ISignalingService
 import tokyo.isseikuzumaki.signalinglib.demo.shared.PATH_RPC
+import tokyo.isseikuzumaki.signalinglib.demo.server.installer.routes.installerRoutes
+import tokyo.isseikuzumaki.signalinglib.demo.server.installer.service.DeviceRegistry
+import tokyo.isseikuzumaki.signalinglib.demo.server.installer.service.FcmNotificationService
+import tokyo.isseikuzumaki.signalinglib.demo.server.installer.service.S3PresignedUrlService
 
 fun Application.configureRouting(
     signaling: ISignalingService,
-    sessionManager: SessionManager
+    sessionManager: SessionManager,
+    deviceRegistry: DeviceRegistry,
+    fcmService: FcmNotificationService,
+    s3Service: S3PresignedUrlService
 ) {
     routing {
         // RPC WebSocket endpoint for kotlinx-rpc communication
@@ -30,6 +37,9 @@ fun Application.configureRouting(
             registerService<ISignalingService> { signaling }
             registerService<ISessionService> { SessionServiceImpl(sessionManager) }
         }
+
+        // Installer REST API routes
+        installerRoutes(deviceRegistry, fcmService, s3Service)
 
         // Static file serving for web client
         staticResources("/", "static")

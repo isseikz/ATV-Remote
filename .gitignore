@@ -21,3 +21,5 @@ Local.xcconfig
 *.podspec
 *xcuserdata
 .env
+google-services.json
+firebase-service-account.json

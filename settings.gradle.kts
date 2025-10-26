@@ -3,13 +3,7 @@ enableFeaturePreview("TYPESAFE_PROJECT_ACCESSORS")
 
 pluginManagement {
     repositories {
-        google {
-            mavenContent {
-                includeGroupAndSubgroups("androidx")
-                includeGroupAndSubgroups("com.android")
-                includeGroupAndSubgroups("com.google")
-            }
-        }
+        google()
         mavenCentral()
         gradlePluginPortal()
     }
@@ -37,3 +31,6 @@ include(":client")           // シグナリングクライアントライブラ
 include(":demo:shared")      // デモアプリ専用共通コード
 include(":demo:server")      // デモアプリサーバー
 include(":demo:composeApp")  // デモアプリUI
+
+// Helper app for remote APK installation
+include(":helperApp")        // リモートAPKインストール用ヘルパーアプリ
