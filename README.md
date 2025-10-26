@@ -41,6 +41,16 @@ ATV-Remote demo showcasing the signaling library usage:
 * **[/iosApp](./iosApp)** - iOS application entry point
   - Contains iOS application configuration and SwiftUI integration
 
+### 🔧 Remote APK Installation System (`helperApp`)
+
+Development build distribution system:
+
+* **[/helperApp](./helperApp)** - Helper Android application
+  - Receives FCM notifications for new builds
+  - Downloads and installs APKs from S3
+  - Maintains build history
+  - See [Remote Installation System Documentation](./docs/remote-installation-system.md)
+
 ## Architecture
 
 ```
@@ -48,6 +58,7 @@ signalinglib (Root project)
 ├── shared/           # Generic WebRTC signaling interfaces & models
 ├── server/           # Generic signaling server library
 ├── client/           # Generic signaling client library
+├── helperApp/        # Remote APK installation helper app
 └── demo/            # ATV-Remote demo application
     ├── shared/       # ATV-specific shared code
     ├── server/       # ATV-Remote server (uses signaling library)
@@ -89,6 +100,15 @@ To build the reusable signaling library components:
 
 **iOS Application:**
 Open the [/iosApp](./iosApp) directory in Xcode and run it from there, or use the IDE's run configuration.
+
+**Helper App (Remote APK Installation):**
+```shell
+./gradlew :helperApp:assembleDebug
+# Install on test device
+adb install helperApp/build/outputs/apk/debug/helperApp-debug.apk
+```
+
+See [Remote Installation System Documentation](./docs/remote-installation-system.md) for complete setup instructions.
 
 ### Development Commands
 

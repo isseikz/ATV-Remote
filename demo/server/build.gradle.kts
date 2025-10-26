@@ -43,6 +43,13 @@ dependencies {
     implementation(libs.ktor.client.content.negotiation)
     implementation(libs.ktor.serialization.kotlinx.json)
 
+    // Firebase Admin SDK for FCM
+    implementation(libs.firebase.admin)
+    
+    // AWS SDK for S3
+    implementation(libs.aws.s3)
+    implementation(libs.aws.core)
+
     runtimeOnly(libs.webrtc.java) {
         artifact {
             classifier = "macos-aarch64"

@@ -1,0 +1,123 @@
+name: Build and Distribute Demo APK
+
+on:
+  push:
+    branches:
+      - main
+      - develop
+      - 'feature/**'
+  pull_request:
+    branches:
+      - main
+      - develop
+
+env:
+  # AWS Configuration
+  AWS_REGION: us-east-1
+  S3_BUCKET: your-apk-bucket-name
+  
+  # Backend Server Configuration
+  BACKEND_URL: https://your-server.com
+
+jobs:
+  build-and-distribute:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up JDK 18
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '18'
+          cache: 'gradle'
+
+      - name: Grant execute permission for gradlew
+        run: chmod +x gradlew
+
+      - name: Build Demo APK
+        run: ./gradlew :demo:composeApp:assembleDebug
+
+      - name: Get Build Information
+        id: build_info
+        run: |
+          echo "branch_name=${GITHUB_REF#refs/heads/}" >> $GITHUB_OUTPUT
+          echo "commit_hash=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+          echo "commit_full_hash=$(git rev-parse HEAD)" >> $GITHUB_OUTPUT
+          echo "timestamp=$(date +%s)" >> $GITHUB_OUTPUT
+          
+          # Extract version from build.gradle.kts or use default
+          VERSION_NAME=$(grep 'versionName' demo/composeApp/build.gradle.kts | sed -n 's/.*versionName = "\(.*\)".*/\1/p' || echo "1.0.0")
+          VERSION_CODE=$(grep 'versionCode' demo/composeApp/build.gradle.kts | sed -n 's/.*versionCode = \(.*\)/\1/p' || echo "1")
+          
+          echo "version_name=$VERSION_NAME" >> $GITHUB_OUTPUT
+          echo "version_code=$VERSION_CODE" >> $GITHUB_OUTPUT
+
+      - name: Rename APK with version info
+        run: |
+          APK_PATH="demo/composeApp/build/outputs/apk/debug/composeApp-debug.apk"
+          NEW_APK_NAME="atv-remote-${{ steps.build_info.outputs.version_name }}-${{ steps.build_info.outputs.commit_hash }}.apk"
+          S3_KEY="builds/${{ steps.build_info.outputs.branch_name }}/$NEW_APK_NAME"
+          
+          cp "$APK_PATH" "$NEW_APK_NAME"
+          echo "apk_filename=$NEW_APK_NAME" >> $GITHUB_ENV
+          echo "s3_key=$S3_KEY" >> $GITHUB_ENV
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Upload APK to S3
+        run: |
+          aws s3 cp "${{ env.apk_filename }}" "s3://${{ env.S3_BUCKET }}/${{ env.s3_key }}" \
+            --metadata "branch=${{ steps.build_info.outputs.branch_name }},commit=${{ steps.build_info.outputs.commit_full_hash }},version=${{ steps.build_info.outputs.version_name }}"
+
+      - name: Notify Backend Server
+        run: |
+          curl -X POST "${{ env.BACKEND_URL }}/api/builds/notify" \
+            -H "Content-Type: application/json" \
+            -H "Authorization: Bearer ${{ secrets.BACKEND_API_TOKEN }}" \
+            -d '{
+              "s3Bucket": "${{ env.S3_BUCKET }}",
+              "s3Key": "${{ env.s3_key }}",
+              "branchName": "${{ steps.build_info.outputs.branch_name }}",
+              "commitHash": "${{ steps.build_info.outputs.commit_full_hash }}",
+              "versionName": "${{ steps.build_info.outputs.version_name }}",
+              "versionCode": ${{ steps.build_info.outputs.version_code }},
+              "buildTimestamp": ${{ steps.build_info.outputs.timestamp }}
+            }'
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: atv-remote-apk
+          path: ${{ env.apk_filename }}
+          retention-days: 30
+
+      - name: Comment on PR
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: `✅ APK built successfully!
+              
+              **Build Information:**
+              - Version: ${{ steps.build_info.outputs.version_name }} (code: ${{ steps.build_info.outputs.version_code }})
+              - Commit: ${{ steps.build_info.outputs.commit_full_hash }}
+              - Branch: ${{ steps.build_info.outputs.branch_name }}
+              
+              The APK has been uploaded to S3 and notifications have been sent to registered devices.
+              
+              Download from artifacts or check your test device for installation prompt.`
+            })
